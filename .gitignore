@@ -1,0 +1,27 @@
+# Compiled Object files
+*.o
+
+# Executables
+main
+crawler
+
+# Build directory
+build/*
+
+# Logs
+logs/*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor-specific
+.vscode/
+*.swp
+*.swo
+
+!.gitKeep
+
+# Dependency / debug tools
+gmon.out
+vgcore.*
