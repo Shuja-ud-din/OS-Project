@@ -20,6 +20,14 @@ typedef struct
     int frequencies[26]; // 'a' to 'z'
 } CharFrequency;
 
+typedef struct
+{
+    pthread_mutex_t lock;
+    UrlWordCount *word_counts;
+    UrlSentenceCount *sentence_counts;
+    CharFrequency frequency;
+} SharedStats;
+
 void analyze_character_frequency(UrlContent *data, int count, CharFrequency *freq_out);
 void print_char_frequency(CharFrequency *freq);
 

@@ -1,10 +1,11 @@
-# 🕸️ Multi-threaded Web Crawler (Single-threaded Phase) – CS Project
+# 🕸️ Multi-threaded Web Crawler – CS Project
 
-This project is a **web crawler and text analyzer**, implemented in **C**, currently using a **single-threaded** model. It:
+This project is a **web crawler and text analyzer**, implemented in **C** using **pthreads** for parallel processing. It:
 
-- Downloads plain text files from a list of URLs.
-- Counts the number of **sentences**, **words**, and the **frequency of characters (a-z)**.
-- Prints per-URL stats.
+- Downloads plain text files from a list of URLs in parallel
+- Counts the number of **sentences**, **words**, and the **frequency of characters (a-z)**
+- Prints per-URL stats and execution time
+- Uses thread synchronization for safe concurrent processing
 
 ---
 
@@ -15,15 +16,17 @@ This project is a **web crawler and text analyzer**, implemented in **C**, curre
 │ └── urls.txt # List of URLs (Plain text only, like Project Gutenberg)
 │
 ├── include/ # Header files
-│ ├── downloader.h
-│ ├── processor.h
-│ ├── utils.h
+│ ├── downloader.h    # URL downloading functionality
+│ ├── processor.h     # Text analysis and shared data structures
+│ ├── thread_pool.h   # Thread pool implementation
+│ └── utils.h         # Utility functions
 │
 ├── src/ # Source files
-│ ├── main.c
-│ ├── downloader.c
-│ ├── processor.c
-│ ├── utils.c
+│ ├── main.c          # Main program entry point
+│ ├── downloader.c    # URL downloading implementation
+│ ├── processor.c     # Text analysis implementation
+│ ├── thread_pool.c   # Thread pool implementation
+│ └── utils.c         # Utility functions implementation
 │
 ├── build/ # Build output (object files)
 │
@@ -82,4 +85,65 @@ make run
 
 ```bash
 make clean
+```
+
+---
+
+## 🔧 Implementation Details
+
+### Threading Model
+
+The project uses a thread pool pattern with the following features:
+
+- Configurable number of worker threads (default: 2)
+- Work distribution using chunk-based partitioning
+- Thread-safe shared data structures using mutex locks
+- Efficient memory management with proper cleanup
+
+### Performance Features
+
+- Parallel URL downloading
+- Concurrent text analysis
+- Thread-safe statistics collection
+- Execution time measurement
+
+### Data Structures
+
+- `SharedStats`: Thread-safe container for analysis results
+- `UrlContent`: Stores downloaded content and metadata
+- `CharFrequency`: Tracks character frequency statistics
+
+---
+
+## 📊 Output Format
+
+The program outputs:
+
+1. Number of loaded URLs
+2. Word counts per URL
+3. Sentence counts per URL
+4. Character frequency analysis
+5. Total execution time
+
+Example output:
+
+```
+Loaded 5 URLs
+
+--- Word Counts ---
+https://example.com/1: 1500 words
+https://example.com/2: 2000 words
+...
+
+--- Sentence Counts ---
+https://example.com/1: 75 sentences
+https://example.com/2: 100 sentences
+...
+
+--- Character Frequencies (a-z) ---
+a: 15000
+b: 5000
+...
+
+Execution time: 2.345 seconds
 ```

@@ -1,64 +1,63 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <pthread.h>
 #include "downloader.h"
 #include "processor.h"
+#include "thread_pool.h"
+#include "utils.h"
 
 #define URL_FILE "constants/urls.txt"
-#define THREAD_COUNT 4
-#define CHUNK_SIZE 500
-#define URL_COUNT 5
+#define THREAD_COUNT 2
 
 int main()
 {
     char **urls = NULL;
     int count = 0;
 
-    if (!load_urls("constants/urls.txt", &urls, &count))
+    if (!load_urls(URL_FILE, &urls, &count))
     {
         return 1;
     }
 
-    UrlContent *data = download_all((const char **)urls, count);
+    printf("Loaded %d URLs\n", count);
+
+    SharedStats stats;
+    pthread_mutex_init(&stats.lock, NULL);
+    stats.word_counts = malloc(sizeof(UrlWordCount) * count);
+    stats.sentence_counts = malloc(sizeof(UrlSentenceCount) * count);
+    memset(&stats.frequency, 0, sizeof(CharFrequency));
+
+    double start_time = get_time_seconds();
+
+    run_thread_pool((const char **)urls, count, THREAD_COUNT, &stats);
+
+    double end_time = get_time_seconds();
+    printf("\nExecution time: %.3f seconds\n", end_time - start_time);
+
+    printf("\n--- Word Counts ---\n");
+    for (int i = 0; i < count; i++)
+    {
+        printf("%s: %d words\n", stats.word_counts[i].url, stats.word_counts[i].word_count);
+    }
+
+    printf("\n--- Sentence Counts ---\n");
+    for (int i = 0; i < count; i++)
+    {
+        printf("%s: %d sentences\n", stats.sentence_counts[i].url, stats.sentence_counts[i].sentence_count);
+    }
+
+    print_char_frequency(&(stats.frequency));
+
+    pthread_mutex_destroy(&stats.lock);
+    free(stats.word_counts);
+    free(stats.sentence_counts);
 
     for (int i = 0; i < count; i++)
     {
-        if (data[i].content)
-        {
-            printf("Downloaded %s [%lu bytes]\n", data[i].url, strlen(data[i].content));
-        }
         free(urls[i]);
     }
-
-    UrlWordCount *stats = analyze_words(data, count);
-    if (stats)
-    {
-        printf("\n--- Word Counts ---\n");
-        for (int i = 0; i < count; i++)
-        {
-            printf("%s: %d words\n", stats[i].url, stats[i].word_count);
-        }
-        free(stats);
-    }
-
-    UrlSentenceCount *sentence_stats = analyze_sentences(data, count);
-    if (sentence_stats)
-    {
-        printf("\n--- Sentence Counts ---\n");
-        for (int i = 0; i < count; i++)
-        {
-            printf("%s: %d sentences\n", sentence_stats[i].url, sentence_stats[i].sentence_count);
-        }
-        free(sentence_stats);
-    }
-
-    CharFrequency freq;
-    analyze_character_frequency(data, count, &freq);
-    print_char_frequency(&freq);
-
     free(urls);
-    free_url_contents(data, count);
 
     return 0;
 }
