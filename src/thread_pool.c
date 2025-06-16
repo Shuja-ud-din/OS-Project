@@ -1,56 +1,83 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
 #include "thread_pool.h"
+#include "downloader.h"
+#include "processor.h"
 
-// Thread worker function
-static void *thread_worker(void *arg)
+typedef struct
 {
-    ThreadPool *pool = (ThreadPool *)arg;
+    const char **urls;
+    int start;
+    int end;
+    SharedStats *stats;
+} ThreadTask;
 
-    while (1)
+static void *process_urls(void *arg)
+{
+    ThreadTask *task = (ThreadTask *)arg;
+
+    for (int i = task->start; i < task->end; i++)
     {
-        int index;
+        UrlContent item = {0};
+        item.url = strdup(task->urls[i]);
+        item.content = download_text(task->urls[i]);
 
-        // Lock and get next index
-        pthread_mutex_lock(&pool->index_mutex);
-        if (pool->current_index >= pool->url_count)
+        if (!item.content)
         {
-            pthread_mutex_unlock(&pool->index_mutex);
-            break;
+            fprintf(stderr, "Failed to download: %s\n", item.url);
+            free(item.url);
+            continue;
         }
-        index = pool->current_index++;
-        pthread_mutex_unlock(&pool->index_mutex);
 
-        // Download the URL
-        pool->results[index].url = strdup(pool->urls[index]);
-        pool->results[index].content = download_text(pool->urls[index]);
+        int words = count_words(item.content);
+        int sentences = count_sentences(item.content);
 
-        if (!pool->results[index].content)
+        CharFrequency local_freq = {0};
+        analyze_character_frequency(&item, 1, &local_freq);
+
+        // Lock before writing shared data
+        pthread_mutex_lock(&task->stats->lock);
+
+        task->stats->word_counts[i].url = item.url;
+        task->stats->word_counts[i].word_count = words;
+
+        task->stats->sentence_counts[i].url = item.url;
+        task->stats->sentence_counts[i].sentence_count = sentences;
+
+        for (int j = 0; j < 26; j++)
         {
-            fprintf(stderr, "Download failed for: %s\n", pool->urls[index]);
+            task->stats->frequency.frequencies[j] += local_freq.frequencies[j];
         }
+
+        pthread_mutex_unlock(&task->stats->lock);
+
+        free(item.content); // content freed here, url is stored in shared stats
     }
 
     return NULL;
 }
 
-void thread_pool_init(ThreadPool *pool, const char **urls, UrlContent *results, int url_count)
-{
-    pool->urls = urls;
-    pool->results = results;
-    pool->url_count = url_count;
-    pool->current_index = 0;
-    pthread_mutex_init(&pool->index_mutex, NULL);
-}
-
-void thread_pool_start(ThreadPool *pool, int num_threads)
+void run_thread_pool(const char **urls, int url_count, int num_threads, SharedStats *stats)
 {
     pthread_t *threads = malloc(sizeof(pthread_t) * num_threads);
+    ThreadTask *tasks = malloc(sizeof(ThreadTask) * num_threads);
+
+    int chunk_size = (url_count + num_threads - 1) / num_threads;
 
     for (int i = 0; i < num_threads; i++)
     {
-        pthread_create(&threads[i], NULL, thread_worker, pool);
+        int start = i * chunk_size;
+        int end = (start + chunk_size > url_count) ? url_count : start + chunk_size;
+
+        tasks[i].urls = urls;
+        tasks[i].start = start;
+        tasks[i].end = end;
+        tasks[i].stats = stats;
+
+        pthread_create(&threads[i], NULL, process_urls, &tasks[i]);
     }
 
     for (int i = 0; i < num_threads; i++)
@@ -59,9 +86,5 @@ void thread_pool_start(ThreadPool *pool, int num_threads)
     }
 
     free(threads);
-}
-
-void thread_pool_destroy(ThreadPool *pool)
-{
-    pthread_mutex_destroy(&pool->index_mutex);
+    free(tasks);
 }
